@@ -15,6 +15,8 @@ import net.minecraftforge.common.ChestGenHooks;
 import net.minecraftforge.common.MinecraftForge;
 import net.minecraftforge.fluids.Fluid;
 import net.minecraftforge.fluids.FluidRegistry;
+import api.forgexpfluid.v1.XPFluidAPIProvider_v1;
+import api.forgexpfluid.v1.XPFluidAPI_v1;
 
 import com.enderio.core.common.Lang;
 import com.enderio.core.common.network.MessageTileNBT;
@@ -161,6 +163,7 @@ import crazypants.enderio.teleport.telepad.BlockTelePad;
 import crazypants.enderio.teleport.telepad.ItemCoordSelector;
 import crazypants.enderio.thaumcraft.ThaumcraftCompat;
 import crazypants.enderio.tool.EnderIOCrashCallable;
+import crazypants.enderio.xp.XpUtil;
 import crazypants.util.EE3Util;
 import static crazypants.enderio.EnderIO.*;
 
@@ -487,6 +490,7 @@ public class EnderIO {
     if(!Loader.isModLoaded("OpenBlocks")) {
       Log.info("XP Juice registered by Ender IO.");
       fluidXpJuice = new Fluid(Config.xpJuiceName).setLuminosity(10).setDensity(800).setViscosity(1500).setUnlocalizedName("eio.xpjuice");
+      XPFluidAPI_v1.addProvider(new XPFluidAPIProvider_v1(fluidXpJuice, XpUtil.RATIO));
       FluidRegistry.registerFluid(fluidXpJuice);
       itemBucketXpJuice = ItemBucketEio.create(fluidXpJuice);
     } else {
