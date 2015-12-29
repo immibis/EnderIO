@@ -4,6 +4,8 @@ import io.netty.buffer.ByteBuf;
 
 import java.security.InvalidParameterException;
 
+import api.forgexpfluid.v1.XPFluidAPIProvider_v1;
+import api.forgexpfluid.v1.XPFluidAPI_v1;
 import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.nbt.NBTTagCompound;
 import net.minecraftforge.common.util.ForgeDirection;
@@ -158,7 +160,7 @@ public class ExperienceContainer extends FluidTank {
   }
 
   public boolean canFill(ForgeDirection from, Fluid fluid) {
-    return fluid != null && EnderIO.fluidXpJuice != null && fluid.getID() == EnderIO.fluidXpJuice.getID();
+    return fluid != null && XPFluidAPI_v1.isXPFluid(fluid);
   }
   
   public int fill(ForgeDirection from, FluidStack resource, boolean doFill) {
@@ -168,11 +170,16 @@ public class ExperienceContainer extends FluidTank {
     if(resource.amount <= 0) {
       return 0;
     }
-    if(!canFill(from, resource.getFluid())) {
+    Fluid fluid = resource.getFluid();
+    if(!canFill(from, fluid)) {
+      return 0;
+    }
+    XPFluidAPIProvider_v1 provider = XPFluidAPI_v1.getProvider(fluid);
+    if(!provider.isXPFluid(resource)) {
       return 0;
     }
     //need to do these calcs in XP instead of fluid space to avoid type overflows
-    int xp = XpUtil.liquidToExperience(resource.amount);
+    int xp = (int)Math.min(Integer.MAX_VALUE, provider.convertMBToXP(resource.amount));
     int xpSpace = getMaximumExperiance() - getExperienceTotal();
     int canFillXP = Math.min(xp, xpSpace);
     if(canFillXP <= 0) {
@@ -181,7 +188,7 @@ public class ExperienceContainer extends FluidTank {
     if(doFill) {
       addExperience(canFillXP);
     }
-    return XpUtil.experienceToLiquid(canFillXP);
+    return (int)Math.ceil(provider.convertXPToMB(canFillXP));
   }
   
   public boolean canDrain(ForgeDirection from, Fluid fluid) {
@@ -210,7 +217,8 @@ public class ExperienceContainer extends FluidTank {
    return XpUtil.experienceToLiquid(experienceTotal);
   }
   
-  public FluidTank readFromNBT(NBTTagCompound nbtRoot) {
+  @Override
+public FluidTank readFromNBT(NBTTagCompound nbtRoot) {
     experienceLevel = nbtRoot.getInteger("experienceLevel");
     experienceTotal = nbtRoot.getInteger("experienceTotal");
     experience = nbtRoot.getFloat("experience");
@@ -218,7 +226,8 @@ public class ExperienceContainer extends FluidTank {
   }
   
   
-  public NBTTagCompound writeToNBT(NBTTagCompound nbtRoot) {
+  @Override
+public NBTTagCompound writeToNBT(NBTTagCompound nbtRoot) {
     nbtRoot.setInteger("experienceLevel", experienceLevel);
     nbtRoot.setInteger("experienceTotal", experienceTotal);
     nbtRoot.setFloat("experience", experience);
