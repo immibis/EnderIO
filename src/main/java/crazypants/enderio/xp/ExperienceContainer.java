@@ -10,10 +10,10 @@ import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.nbt.NBTTagCompound;
 import net.minecraftforge.common.util.ForgeDirection;
 import net.minecraftforge.fluids.Fluid;
+import net.minecraftforge.fluids.FluidRegistry;
 import net.minecraftforge.fluids.FluidStack;
 import net.minecraftforge.fluids.FluidTank;
 import net.minecraftforge.fluids.FluidTankInfo;
-import crazypants.enderio.EnderIO;
 
 public class ExperienceContainer extends FluidTank {
   // Note: We extend FluidTank instead of implementing IFluidTank because it has
@@ -144,19 +144,19 @@ public class ExperienceContainer extends FluidTank {
 
   
   public FluidStack drain(ForgeDirection from, int maxDrain, boolean doDrain) {
-    if(EnderIO.fluidXpJuice == null) {
+    XPFluidAPIProvider_v1 provider = XPFluidAPI_v1.getPreferredProvider();
+    if(provider == null) {
       return null;
     }
-    int available = getFluidAmount();
-    int canDrain = Math.min(available, maxDrain);
-    if(doDrain) {      
-      int newXp = experienceTotal - XpUtil.liquidToExperience(canDrain);
+    int canDrainXp = Math.min(experienceTotal, (int)Math.min(Integer.MAX_VALUE, provider.convertMBToXP(maxDrain))); 
+    if(doDrain) {
+      int newXp = experienceTotal - canDrainXp;
       experience = 0;
       experienceLevel = 0;
       experienceTotal = 0;
-      addExperience(newXp);      
+      addExperience(newXp);
     }        
-    return new FluidStack(EnderIO.fluidXpJuice, canDrain);
+    return provider.createFluidStack((int)provider.convertXPToMB(canDrainXp));
   }
 
   public boolean canFill(ForgeDirection from, Fluid fluid) {
@@ -192,15 +192,17 @@ public class ExperienceContainer extends FluidTank {
   }
   
   public boolean canDrain(ForgeDirection from, Fluid fluid) {
-    return fluid != null && EnderIO.fluidXpJuice != null && fluid.getID() == EnderIO.fluidXpJuice.getID();
+    XPFluidAPIProvider_v1 provider = XPFluidAPI_v1.getPreferredProvider();
+    return provider != null && fluid == provider.getFluid();
   }
   
   public FluidTankInfo[] getTankInfo(ForgeDirection from) {
-    if(EnderIO.fluidXpJuice == null) {
+    XPFluidAPIProvider_v1 provider = XPFluidAPI_v1.getPreferredProvider();
+    if(provider == null) {
       return new FluidTankInfo[0];
     }
     return new FluidTankInfo[] {
- new FluidTankInfo(new FluidStack(EnderIO.fluidXpJuice, getFluidAmount()), getCapacity())
+      new FluidTankInfo(getFluid(), getCapacity())
     };
   }
 
@@ -209,12 +211,20 @@ public class ExperienceContainer extends FluidTank {
     if(maxXp == Integer.MAX_VALUE) {
       return Integer.MAX_VALUE;
     }
-    return XpUtil.experienceToLiquid(maxXp);
+    XPFluidAPIProvider_v1 provider = XPFluidAPI_v1.getPreferredProvider();
+    if(provider == null) {
+      return 0;
+    }
+    return (int)Math.min(Integer.MAX_VALUE, Math.ceil(provider.convertXPToMB(maxXp)));
   }
 
   @Override
   public int getFluidAmount() {
-   return XpUtil.experienceToLiquid(experienceTotal);
+	XPFluidAPIProvider_v1 provider = XPFluidAPI_v1.getPreferredProvider();
+	if(provider == null) {
+	  return 0;
+	}
+	return (int)Math.min(Integer.MAX_VALUE, Math.floor(provider.convertXPToMB(experienceTotal)));
   }
   
   @Override
@@ -249,7 +259,11 @@ public NBTTagCompound writeToNBT(NBTTagCompound nbtRoot) {
 
   @Override
   public FluidStack getFluid() {
-    return new FluidStack(EnderIO.fluidXpJuice, getFluidAmount());
+    XPFluidAPIProvider_v1 provider = XPFluidAPI_v1.getPreferredProvider();
+    if(provider == null) {
+      return new FluidStack(FluidRegistry.WATER, 0);
+    }
+    return provider.createFluidStack(getFluidAmount());
   }
 
   @Override
@@ -273,10 +287,11 @@ public NBTTagCompound writeToNBT(NBTTagCompound nbtRoot) {
     experienceLevel = 0;
     experienceTotal = 0;
     if (fluid != null && fluid.getFluid() != null) {
-      if (EnderIO.fluidXpJuice == fluid.getFluid()) {
-        addExperience(XpUtil.liquidToExperience(fluid.amount));
+      XPFluidAPIProvider_v1 provider = XPFluidAPI_v1.getProvider(fluid);
+      if (provider != null) {
+        addExperience((int)Math.min(Integer.MAX_VALUE, provider.convertMBToXP(fluid.amount)));
       } else {
-        throw new InvalidParameterException(fluid.getFluid() + " is no XP juice");
+        throw new InvalidParameterException(fluid.getFluid() + " is not an XP fluid");
       }
     }
     xpDirty = true;
