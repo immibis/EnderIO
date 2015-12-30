@@ -10,6 +10,8 @@ import net.minecraft.world.World;
 import net.minecraftforge.common.util.ForgeDirection;
 import net.minecraftforge.fluids.FluidStack;
 import net.minecraftforge.fluids.IFluidHandler;
+import api.forgexpfluid.v1.XPFluidAPIProvider_v1;
+import api.forgexpfluid.v1.XPFluidAPI_v1;
 
 import com.enderio.core.api.client.gui.IResourceTooltipProvider;
 import com.enderio.core.common.util.Util;
@@ -84,21 +86,31 @@ public class ItemXpTransfer extends Item implements IResourceTooltipProvider {
     }
     IFluidHandler fh = (IFluidHandler) te;
     ForgeDirection dir = ForgeDirection.getOrientation(side);
-    if(!fh.canDrain(dir, EnderIO.fluidXpJuice)) {
-      return false;
-    }
+    
     int currentXP = XpUtil.getPlayerXP(player);
     int nextLevelXP = XpUtil.getExperienceForLevel(player.experienceLevel + 1) + 1;
     int requiredXP = nextLevelXP - currentXP;
 
-    int fluidVolume = XpUtil.experienceToLiquid(requiredXP);
-    FluidStack fs = new FluidStack(EnderIO.fluidXpJuice, fluidVolume);
-    FluidStack res = fh.drain(dir, fs, true);
-    if(res == null || res.amount <= 0) {
+    // See which fluid is in this block.
+    FluidStack contains = fh.drain(dir, Integer.MAX_VALUE, false);
+    if(contains == null || contains.getFluid() == null || contains.amount == 0) {
+      return false;
+    }
+    
+    XPFluidAPIProvider_v1 provider = XPFluidAPI_v1.getProvider(contains);
+    if(provider == null) {
+      // Not an XP fluid.
+      return false;
+    }
+    
+    // Round up - in case of fractional mB, take slightly more than required.
+    int fluidVolume = (int)Math.min(Integer.MAX_VALUE, Math.ceil(provider.convertXPToMB(requiredXP)));
+    FluidStack res = fh.drain(dir, provider.createFluidStack(fluidVolume), true);
+    if(res == null || res.amount <= 0 || !provider.isXPFluid(res)) {
       return false;
     }
 
-    int xpToGive = XpUtil.liquidToExperience(res.amount);
+    int xpToGive = (int)provider.convertMBToXP(res.amount);
     player.addExperience(xpToGive);
 
     return true;
@@ -115,17 +127,19 @@ public class ItemXpTransfer extends Item implements IResourceTooltipProvider {
     }
     IFluidHandler fh = (IFluidHandler) te;
     ForgeDirection dir = ForgeDirection.getOrientation(side);
-    if(!fh.canFill(dir, EnderIO.fluidXpJuice)) {
+    XPFluidAPIProvider_v1 provider = XPFluidAPI_v1.getPreferredProvider();
+    if(provider == null || !fh.canFill(dir, provider.getFluid())) {
       return false;
     }
 
-    int fluidVolume = XpUtil.experienceToLiquid(XpUtil.getPlayerXP(player));
-    FluidStack fs = new FluidStack(EnderIO.fluidXpJuice, fluidVolume);
+    // Round down - in case of fractional mB, give slightly less than expected.
+    int fluidVolume = (int)Math.min(Integer.MAX_VALUE, Math.floor(provider.convertXPToMB(XpUtil.getPlayerXP(player))));
+    FluidStack fs = provider.createFluidStack(fluidVolume);
     int takenVolume = fh.fill(dir, fs, true);
     if(takenVolume <= 0) {
       return false;
     }
-    int xpToTake = XpUtil.liquidToExperience(takenVolume);
+    int xpToTake = (int)Math.ceil(provider.convertMBToXP(takenVolume));
     XpUtil.addPlayerXP(player, -xpToTake);
     return true;
   }

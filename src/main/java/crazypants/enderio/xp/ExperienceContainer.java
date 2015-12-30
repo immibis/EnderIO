@@ -148,6 +148,11 @@ public class ExperienceContainer extends FluidTank {
     if(provider == null) {
       return null;
     }
+    
+    // We round down the maximum amount of XP drained.
+    // This means that if maxDrain is an amount of liquid representing less than one experience point,
+    // no fluid will ever be extracted.
+    // As a workaround, the player can directly transfer the XP into a tank, then extract it from the tank.
     int canDrainXp = Math.min(experienceTotal, (int)Math.min(Integer.MAX_VALUE, provider.convertMBToXP(maxDrain))); 
     if(doDrain) {
       int newXp = experienceTotal - canDrainXp;
@@ -155,7 +160,8 @@ public class ExperienceContainer extends FluidTank {
       experienceLevel = 0;
       experienceTotal = 0;
       addExperience(newXp);
-    }        
+    }
+    // In case of non-integer mB/XP ratio, round the returned mB down.
     return provider.createFluidStack((int)provider.convertXPToMB(canDrainXp));
   }
 
@@ -179,6 +185,7 @@ public class ExperienceContainer extends FluidTank {
       return 0;
     }
     //need to do these calcs in XP instead of fluid space to avoid type overflows
+    // Round down the amount of XP being added (so e.g. 30 mB / 20 mB/XP -> 1 XP)
     int xp = (int)Math.min(Integer.MAX_VALUE, provider.convertMBToXP(resource.amount));
     int xpSpace = getMaximumExperiance() - getExperienceTotal();
     int canFillXP = Math.min(xp, xpSpace);
@@ -188,6 +195,7 @@ public class ExperienceContainer extends FluidTank {
     if(doFill) {
       addExperience(canFillXP);
     }
+    // Round up the amount of liquid used, in case of fractional mB/XP ratios.
     return (int)Math.ceil(provider.convertXPToMB(canFillXP));
   }
   
@@ -215,6 +223,7 @@ public class ExperienceContainer extends FluidTank {
     if(provider == null) {
       return 0;
     }
+    // Round up the capacity
     return (int)Math.min(Integer.MAX_VALUE, Math.ceil(provider.convertXPToMB(maxXp)));
   }
 
@@ -224,6 +233,7 @@ public class ExperienceContainer extends FluidTank {
 	if(provider == null) {
 	  return 0;
 	}
+	// Round down the stored amount
 	return (int)Math.min(Integer.MAX_VALUE, Math.floor(provider.convertXPToMB(experienceTotal)));
   }
   
@@ -289,6 +299,7 @@ public NBTTagCompound writeToNBT(NBTTagCompound nbtRoot) {
     if (fluid != null && fluid.getFluid() != null) {
       XPFluidAPIProvider_v1 provider = XPFluidAPI_v1.getProvider(fluid);
       if (provider != null) {
+        // Round down the amount of XP being added.
         addExperience((int)Math.min(Integer.MAX_VALUE, provider.convertMBToXP(fluid.amount)));
       } else {
         throw new InvalidParameterException(fluid.getFluid() + " is not an XP fluid");
